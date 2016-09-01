@@ -8,6 +8,9 @@ TMP_FOLDER=/tmp/rofs.$RANDOM
 mkdir $TMP_FOLDER
 mkdir -p /mfs/{dev,var}
 
+# sync every 2 hours
+echo "*       */2     *       *       *       /usr/local/sbin/update_disk >/dev/null 2>&1" >> /var/cron/tabs/root
+
 /usr/local/bin/rsync -vhaz --delete -f "- *.sock" /var/ /mfs/var/
 rm -rf /var/*
 
@@ -27,9 +30,6 @@ sed 's/ffs rw/ffs ro/' /etc/fstab > $TMP_FOLDER/fstab
 rm /etc/fstab && install -m 644 $TMP_FOLDER/fstab /etc
 
 echo /usr/local/sbin/update_disk >> /etc/rc.shutdown
-
-# sync every 2 hours
-echo "*       */2     *       *       *       /usr/local/sbin/update_disk >/dev/null 2>&1" >> /var/cron/tabs/root
 
 rm /etc/mfs.state
 echo 2 > /etc/mfs.state
