@@ -1,0 +1,23 @@
+#!/bin/sh
+/sbin/mount -uw /
+
+/bin/dd if=/var/db/host.random of=/dev/random bs=65536 count=1 status=none
+/bin/chmod 600 /var/db/host.random
+/bin/dd if=/dev/random of=/var/db/host.random bs=65536 count=1 status=none
+/bin/dd if=/dev/random of=/etc/random.seed bs=512 count=1 status=none
+/bin/chmod 600 /etc/random.seed
+
+if [[ ! -f /etc/motd ]]; then
+        install -c -o root -g wheel -m 664 /dev/null /etc/motd
+fi
+if T=$(mktemp /tmp/_motd.XXXXXXXXXX); then
+        sysctl -n kern.version | sed 1q >$T
+        echo "" >>$T
+        sed '1,/^$/d' </etc/motd >>$T
+        cmp -s $T /etc/motd || cp $T /etc/motd
+        rm -f $T
+fi
+
+/usr/local/bin/rsync -vhaz --delete -f "- *.sock" /var/ /mfs/var/
+
+/sbin/mount -ur /
