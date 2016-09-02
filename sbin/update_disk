@@ -1,12 +1,17 @@
 #!/bin/sh
+# Enable write on / slice
 /sbin/mount -uw /
 
-/bin/dd if=/var/db/host.random of=/dev/random bs=65536 count=1 status=none
-/bin/chmod 600 /var/db/host.random
-/bin/dd if=/dev/random of=/var/db/host.random bs=65536 count=1 status=none
-/bin/dd if=/dev/random of=/etc/random.seed bs=512 count=1 status=none
-/bin/chmod 600 /etc/random.seed
+# push the old seed into the kernel
+dd if=/var/db/host.random of=/dev/random bs=65536 count=1 status=none
+chmod 600 /var/db/host.random
+# ... and create a future seed
+dd if=/dev/random of=/var/db/host.random bs=65536 count=1 status=none
+# and create a seed file for the boot-loader
+dd if=/dev/random of=/etc/random.seed bs=512 count=1 status=none
+chmod 600 /etc/random.seed
 
+# Patch /etc/motd.
 if [[ ! -f /etc/motd ]]; then
         install -c -o root -g wheel -m 664 /dev/null /etc/motd
 fi
@@ -18,6 +23,8 @@ if T=$(mktemp /tmp/_motd.XXXXXXXXXX); then
         rm -f $T
 fi
 
+# Sync /var
 /usr/local/bin/rsync -vhaz --delete -f "- *.sock" /var/ /mfs/var/
 
+# Go back to Read-Only
 /sbin/mount -ur /
