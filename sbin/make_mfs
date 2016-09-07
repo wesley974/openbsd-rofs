@@ -16,6 +16,7 @@ rm -rf /var/*
 
 cp /dev/MAKEDEV /mfs/dev
 cd /mfs/dev && /dev/MAKEDEV all
+rm -rf /dev/*
 
 # /var, allocate 400 MB
 echo "swap /var mfs rw,-P=/mfs/var,-s400m,nodev 0 0" >> /etc/fstab
