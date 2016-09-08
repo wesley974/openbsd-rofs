@@ -1,0 +1,104 @@
+#!/bin/ksh
+
+# Debug mode
+# set -x
+
+# Create update-disk script
+cat <<'EOF'>> /mnt/usr/local/sbin/update-disk
+#!/bin/ksh
+
+# Enable write on / slice
+/sbin/mount -uw /
+
+# push the old seed into the kernel
+dd if=/var/db/host.random of=/dev/random bs=65536 count=1 status=none
+chmod 0600 /var/db/host.random
+# ... and create a future seed
+dd if=/dev/random of=/var/db/host.random bs=65536 count=1 status=none
+# and create a seed file for the boot-loader
+dd if=/dev/random of=/etc/random.seed bs=512 count=1 status=none
+chmod 0600 /etc/random.seed
+
+# Patch /etc/motd.
+if [[ ! -f /etc/motd ]]; then
+        install -c -o root -g wheel -m 664 /dev/null /etc/motd
+fi
+if T=$(mktemp /tmp/_motd.XXXXXXXXXX); then
+        sysctl -n kern.version | sed 1q >$T
+        echo "" >>$T
+        sed '1,/^$/d' </etc/motd >>$T
+        cmp -s $T /etc/motd || cp $T /etc/motd
+        rm -f $T
+fi
+
+# Sync /var
+/usr/local/bin/rsync -vhaz --delete -f "- *.sock" /var/ /mfs/var/
+
+# Go back to Read-Only
+/sbin/mount -ur /
+EOF
+
+# Permissions on update-disk
+chmod 0555 /mnt/usr/local/sbin/update-disk
+chown root:bin /mnt/usr/local/sbin/update-disk
+
+# Fix installpath variable to be able to add packages
+[ -f /mnt/etc/pkg.conf ] || echo installpath=ftp2.fr.openbsd.org > /mnt/etc/pkg.conf
+
+# Run at startup
+cat <<'EOF'>>/mnt/etc/rc.firsttime
+# Add rsync
+pkg_add rsync--
+
+# Enable Read-only file system for /
+T=/tmp/fstab.$RANDOM
+mkdir $T
+sed 's/ffs rw/ffs ro/' /etc/fstab > $T/fstab
+rm /etc/fstab 
+cp $T/fstab /etc
+chmod 0644 /etc/fstab
+chown root:wheel /etc/fstab
+rm -rf $T
+EOF
+
+cp -p /mnt/etc/examples/rc.local /mnt/etc
+echo "mount | grep -v mfs | grep ro > /dev/null 2>&1" >>/mnt/etc/rc.local
+echo "[ \$? == 1 ] && mount -ur /" >> /mnt/etc/rc.local
+
+# Create TEMP folder
+TMP_FOLDER=/tmp/rofs.$RANDOM
+mkdir $TMP_FOLDER
+
+# Create /mfs
+mkdir -p /mnt/mfs/{dev,var}
+
+# Populate /mfs/var
+(cd /mnt/var && tar -cpf - . | tar -xpf - -C /mnt/mfs/var)
+rm -rf /mnt/var/*
+
+# Populate /mfs/dev
+cp -p /mnt/dev/MAKEDEV /mnt/mfs/dev
+cd /mnt/mfs/dev && /mnt/dev/MAKEDEV all
+
+# /var, allocate 400 MB
+echo "swap /var mfs rw,-P=/mfs/var,-s400m,nodev 0 0" >> /mnt/etc/fstab
+
+# /dev, allocate 4 MB
+echo "swap /dev mfs rw,-P=/mfs/dev,-s4m,-i128,nosuid,noexec 0 0" >> /mnt/etc/fstab
+
+# /tmp, allocate 40 MB
+echo "swap /tmp mfs rw,-s40m,nodev,nosuid,noexec 0 0" >> /mnt/etc/fstab
+
+# Install rc.shutdown script
+cp -p /mnt/etc/examples/rc.shutdown /mnt/etc
+
+# Add update-disk script to rc.shutdown
+echo /usr/local/sbin/update-disk >> /mnt/etc/rc.shutdown
+
+# Fix write on /dev at shutdown to avoid error like "init: /etc/fstab: chmod(/dev/console): Read-only file system"
+echo "mount -uw /" >> /mnt/etc/rc.shutdown
+
+# sync every 2 hours
+echo "*       */2     *       *       *       /usr/local/sbin/update_disk >/dev/null 2>&1" >> /mnt/mfs/var/cron/tabs/root
+
+rm -rf $TMP_FOLDER
