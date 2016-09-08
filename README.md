@@ -13,9 +13,8 @@ You need :
 - RAM 1GB minimum
 - Install OpenBSD on a 3GB partition / without swap, at install, please remove -x* -g* -c* sets
 
-How to install :
-Just import the install.site script in a set called siteXX.tgz.
-For more information, look at <a href="https://www.openbsd.org/faq/faq4.html#site">OpenBSD FAQ : Customizing the install process</a>
+How to install ?<br>
+Just import the install.site script in a set called siteXX.tgz. For more information, look at <a href="https://www.openbsd.org/faq/faq4.html#site">OpenBSD FAQ : Customizing the install process</a>
 
 Enjoy!
 
